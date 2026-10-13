@@ -9,7 +9,7 @@ const calcas=[0x1e293b,0x303236,0x51483f,0x2f4058,0x5b4f3d,0x22252a,0x6d665d,0x2
 const cabelos=[0x111214,0x2d1c16,0x5b3825,0x936b3f,0xc3a269,0x6f2d21,0x3b3029];
 const acessorios=['bone','mochila','oculos','fones','bolsa','gorro','chapeu',null];
 const personalidades=['Esportista','Executivo','Artista','Estudante','Turista','Músico','Trabalhador','Aventureiro','Fotógrafo','Universitário','Ciclista','Morador'];
-function perfil(i){return{modelo:['homem','mulher','homem','mulher2','mulher'][i%5],acessorio:acessorios[(i*3)%acessorios.length],detalhe:camisas[(i*7+5)%camisas.length],nome:personalidades[i%personalidades.length]};}
+function perfil(i){return{modelo:['homem','miniCivilA','mulher','miniCivilB','mulher2','miniCivilC'][i%6],acessorio:acessorios[(i*3)%acessorios.length],detalhe:camisas[(i*7+5)%camisas.length],nome:personalidades[i%personalidades.length]};}
 function procurarCobertura(p,alvo){
   const origem=alvo.clone().setY(1.35);
   for(const raio of [6,10])for(let i=0;i<8;i++){
@@ -23,7 +23,7 @@ function procurarCobertura(p,alvo){
 export class NPC {
   constructor(scene, policia, fixo, cor, indice=0) {
     this.policia = policia; this.fixo = fixo; this.indice=indice;this.cacando = false; this.tt = 0; this.briga = 0; this.brigou = false;
-    const visual=perfil(indice),policialEstilo=policia?{modelo:indice%2?'mulher':'homem',acessorio:'policia',detalhe:0x142b4a,nome:'Policial'}:visual;
+    const visual=perfil(indice),policialEstilo=policia?{modelo:'miniPolicial',acessorio:'policia',detalhe:0x142b4a,nome:'Policial'}:visual;
     this.obj = criarHumano(cor ?? (policia ? 0x1e3a8a : camisas[(indice*5+3)%camisas.length]), peles[(indice*5+1)%peles.length], cabelos[(indice*3+2)%cabelos.length], policia?0x17243b:calcas[(indice*7+2)%calcas.length], fixo ? 'soldado' : 'npc',fixo?null:policialEstilo);
     if(policia)trocarArma(this.obj,indice%3===0?2:0);
     this.obj.scale.setScalar(R(.91, 1.09));this.obj.scale.x*=.94+((indice*7)%9)/100;this.escalaBase=this.obj.scale.x; scene.add(this.obj); this.reset();

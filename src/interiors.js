@@ -7,6 +7,7 @@ import * as Assets from './assets.js';
 
 import { PAREDES, PORTAS, MOVEIS, COMODOS, JANELAS, LUZES, VAGA_CARRO } from './casa-layout.js';
 import { criarMovel, aplicarEstilo, fundirMoveis } from './furniture.js';
+import { fundirEstaticos } from './static-models.js';
 import { CASAS, casaDefinida } from './casas-catalogo.js';
 export function criarInterior(scene, fraco = false, luzes = null) {
   const raiz = new THREE.Group();
@@ -20,13 +21,13 @@ export function criarInterior(scene, fraco = false, luzes = null) {
     const o = new THREE.Mesh(new THREE.CylinderGeometry(raio, raio, h, 20), mat(c, metal, .55));
     o.position.set(x, y, z); o.rotation.set(deitado ? Math.PI / 2 : 0, ry, 0); o.castShadow = true; o.receiveShadow = true; pai.add(o); return o;
   };
-  const mob = (pai, chave, x, z, tamanho, ry = 0) => {
+  const mob = (pai, chave, x, z, tamanho, ry = 0, y = .12) => {
     const o = Assets.clonarCena(chave); if (!o) return null;
     const box = new THREE.Box3().setFromObject(o), centro = new THREE.Vector3(); box.getCenter(centro);
     const tam = Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z) || 1;
     const base = new THREE.Group(); o.position.set(-centro.x, -box.min.y, -centro.z); base.add(o);
-    base.scale.setScalar(tamanho / tam); base.position.set(x, .12, z); base.rotation.y = ry;
-    base.traverse(n => { if (n.isMesh) { n.receiveShadow = true; n.castShadow = true; } }); pai.add(base); return base;
+    base.scale.setScalar(tamanho / tam); base.position.set(x, y, z); base.rotation.y = ry;
+    base.traverse(n => { if (n.isMesh) { n.receiveShadow = true; n.castShadow = true; } }); pai.add(base);if(pai.userData.colisoes&&y<=.13){base.updateWorldMatrix(true,true);const b=new THREE.Box3().setFromObject(base),t=b.getSize(new THREE.Vector3()),c=b.getCenter(new THREE.Vector3());pai.worldToLocal(c);if(t.y>.45)pai.userData.colisoes.push([c.x,c.z,t.x,t.z,t.y]);}return base;
   };
   const texto = (pai, msg, x, y, z, w, h, cor = '#fff', fundo = '#111d', ry = 0) => {
     const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128; const ctx = cv.getContext('2d');
@@ -75,12 +76,17 @@ export function criarInterior(scene, fraco = false, luzes = null) {
   // Mercado/posto: corredores organizados, caixa, geladeira e área de espera.
   const loja = ambiente(16, 12, 0x7e878d, 0xe7e3da, 3.2);
   B(loja, 15.4, .035, 1.1, 0xcfd5d7, 0, .11, 0);
-  for (const x of [-5.5, -2.5, .5, 3.5]) mob(loja, 'mobEstante', x, -.9, 2.15, Math.PI / 2);
-  mob(loja, 'mobBalcao', 0, -4.5, 3.1); mob(loja, 'mobComputador', -.8, -4.45, .62); mob(loja, 'mobCadeira', 1.65, -4.25, 1.05);
-  mob(loja, 'mobGeladeira', -6.35, 3.25, 2.15); mob(loja, 'mobPlanta', 6.2, 3.9, 1.3); mob(loja, 'mobSofa', 4.7, 4.1, 2.2, Math.PI);
+  const detalhesLoja = new THREE.Group(); loja.add(detalhesLoja);detalhesLoja.userData.colisoes=[];
+  [-5.5,-2.5,.5,3.5].forEach((x,i)=>mob(detalhesLoja,i%2?'mobMercadoSacolas':'mobMercadoPrateleira',x,-.9,2.15,Math.PI/2));
+  mob(loja, 'mobBalcao', 0, -4.5, 3.1); mob(detalhesLoja, 'mobMercadoCaixa', -.8, -4.45, .62,0,1.04); mob(loja, 'mobCadeira', 1.65, -4.25, 1.05);
+  mob(detalhesLoja, 'mobMercadoFreezer', -6.35, 3.25, 2.15); mob(loja, 'mobPlanta', 6.2, 3.9, 1.3); mob(loja, 'mobSofa', 4.7, 4.1, 2.2, Math.PI);
+  mob(detalhesLoja,'mobMercadoFruta',-5.5,-3.7,1.5);mob(detalhesLoja,'mobMercadoPao',3.5,-3.7,1.5);
+  mob(detalhesLoja,'mobTrabalhoCaixa',-6.5,-4.7,.7);
+  mob(detalhesLoja,'mobMercadoCarrinho',-6.4,4.8,1.1);mob(detalhesLoja,'mobMercadoCesta',-.8,-4.1,.45,0,1.05);
+  fundirEstaticos(detalhesLoja);
   const placaLoja = B(loja, 6, 1, .1, 0x0b6b2e, 0, 3.3, -5.82);
   luz(loja, -4.2, 3.9, 0, 1.15, 9); luz(loja, 4.2, 3.9, 0, 1.15, 9);
-  const caixa = criarHumano(0xffffff, 0xc68642); caixa.position.set(0, 0, -5.35); caixa.rotation.y = Math.PI; loja.add(caixa);
+  const caixa = criarHumano(0xffffff,0xc68642,0x2b1b12,0x24354c,'npc',{modelo:'miniFuncionario',nome:'Atendente'}); caixa.position.set(0, 0, -5.35); caixa.rotation.y = Math.PI; loja.add(caixa);
 
   // Casa (v31): planta coerente e validada em tests/house-layout.mjs (dados em casa-layout.js).
   //   Oeste: GARAGEM na frente (onde o carro entra) · QUARTO atrás · BANHEIRO no canto.
@@ -211,6 +217,21 @@ export function criarInterior(scene, fraco = false, luzes = null) {
   B(oficina, 5.5, .92, 1.1, 0x596267, -11.5, .58, .8, .45, .35);
   B(oficina, .25, 3.3, .25, 0xd33a2f, -8.5, 1.78, 2.8, .5); B(oficina, 3.1, .25, .25, 0xd33a2f, -10, 3.32, 2.8, .5);
   B(oficina, .1, 1.85, .1, 0xc7cdd0, -11.5, 2.35, 2.8, .8); C(oficina, .68, .9, 0x30363a, -11.5, .72, 2.8, 0, .65);
+  const detalhesOficina = new THREE.Group();oficina.add(detalhesOficina);detalhesOficina.userData.colisoes=[];
+  for(const x of [-13.8,-10.2]){
+    const bancada=mob(detalhesOficina,'mobOficinaBancada',x,-9.5,2.8);const topo=bancada?new THREE.Box3().setFromObject(bancada).max.y:1.08;
+    mob(detalhesOficina,'mobOficinaFerramentas',x,-11.4,2.45,0,1.9);
+    mob(detalhesOficina,'mobOficinaMaleta',x,-9.5,.6,0,topo+.01);
+  }
+  mob(detalhesOficina,'mobOficinaChave',-11.7,.7,.55,0,1.1);
+  mob(detalhesOficina,'mobOficinaPistao',-10.4,.8,.5,0,1.1);
+  mob(detalhesOficina,'mobOficinaEngrenagem',-12.5,.7,.48,0,1.1);
+  mob(detalhesOficina,'mobOficinaScanner',-11.5,.8,.65,0,1.1);
+  mob(detalhesOficina,'mobTrabalhoPaleteira',12.3,-7,1.7,Math.PI/2);
+  mob(detalhesOficina,'mobTrabalhoCarrinho',12.4,-3.8,1.4);
+  for(const z of [-5.5,-2.5])mob(detalhesOficina,'mobTrabalhoCaixa',12.4,z,.7);
+  mob(detalhesOficina,'mobTrabalhoContainer',12.2,.4,1.5);
+  fundirEstaticos(detalhesOficina);
   // Recepção e computador de customização.
   B(oficina, 6.4, 1.05, 1.05, 0x252d32, -11.6, .64, 9.7, .25, .52);
   B(oficina, 6.45, .13, 1.2, 0xb8b4aa, -11.6, 1.22, 9.7, 0, .3);
@@ -243,6 +264,7 @@ export function criarInterior(scene, fraco = false, luzes = null) {
     casa: colisoresCasa,
     oficina:[[-11.6,-10.9,8.2,1.2,2.4],[-14.4,-6.6,2.4,6.8,1.4],[-11.5,.8,5.8,1.35,1.4],[-11.6,9.7,6.8,1.35,1.6],[14.25,-1.15,2.2,18.8,2.7],[12.5,11.25,6.4,.3,3.4],[9.35,8.75,.3,5.2,3.4]]
   };
+  colisores.mercado.push(...detalhesLoja.userData.colisoes);colisores.posto.push(...detalhesLoja.userData.colisoes);colisores.oficina.push(...detalhesOficina.userData.colisoes);
   const estilosCasa = [
     { piso: 0x845f42, parede: 0xe8e3d9, madeira: 0x956f50 }, { piso: 0xb0b7b9, parede: 0xe9eff1, madeira: 0xb08a63 }, { piso: 0x56616b, parede: 0xe6e9ee, madeira: 0x6c4d38 }, { piso: 0x946941, parede: 0xeee3cd, madeira: 0x8b603a }
   ];

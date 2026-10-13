@@ -4,7 +4,7 @@
 // carros e armas — assim funciona bem independente da escala original do arquivo .glb.
 import * as THREE from 'three';
 import * as Assets from './assets.js';
-import { LUGARES, PREDIOS_PACK } from './world.js';
+import { LUGARES, PREDIOS_PACK, alinharColisorPredio } from './world.js';
 import { criarCasasAnexadas } from './casas-modelos.js';
 import { casaDefinida } from './casas-catalogo.js';
 
@@ -39,6 +39,9 @@ function por(scene, chave, x, z, alvoTam, ry = 0) {
     });
   });
   scene.add(wrapper);
+  if(/^kit(Torre|Grande|Baixo)/.test(chave)){
+    wrapper.updateMatrixWorld(true);const b=new THREE.Box3().setFromObject(wrapper),s=b.getSize(new THREE.Vector3());alinharColisorPredio(x,z,s.x,s.z);
+  }
   return wrapper;
 }
 
@@ -59,17 +62,51 @@ export function criarDecoracoes(scene, fraco) {
     const cx = bx * 100 + 50, cz = bz * 100 + 50, n = !fraco && Math.random() < .35 ? 2 : 1;
     for (let i = 0; i < n; i++) { const [chave, tam] = miudezas[R(0, miudezas.length) | 0]; p(scene, chave, cx + R(-3.5, 3.5), cz + R(-3.5, 3.5), tam, R(0, Math.PI * 2)); }
   }
+  // Vegetação nova na calçada perto dos locais úteis, sem ocupar a pista.
+  LUGARES.forEach((l,i)=>{
+    if(l.tipo!=='casa'&&l.tipo!=='mercado'&&l.tipo!=='oficina')return;
+    const x=Math.round(l.x/100)*100+11;
+    p(scene,i%2?'arvoreFolhosa':'arvoreConica',x,l.z+12,4.5);
+    if(!fraco){p(scene,'arvoreFolhosa',x,l.z-12,4.1);p(scene,'arbustoDecor',x+2,l.z+15,1.1);}
+  });
+  // GLBs novos em jardins e calçadas, mantendo livres pistas e entradas.
+  LUGARES.forEach((l,i)=>{
+    const x=Math.floor(l.x/100)*100+50,z=Math.floor(l.z/100)*100+50;
+    p(scene,'florVermelha',x-4,z+4,.7);
+    p(scene,'florAmarela',x+4,z+4,.65);
+    if(!fraco){p(scene,'pedraJardim',x-4,z-4,.7);p(scene,'banco',x+3,z-3,1.65,Math.PI/2);}
+  });
+  for(let i=0;i<(fraco?5:10);i++){
+    const x=(i%3-1)*100+9,z=(Math.floor(i/3)-1)*100+46;
+    p(scene,'posteDetalhado',x,z,6,Math.PI/2);
+  }
+  p(scene,'placaAvenida',9,-160,6,Math.PI/2);
+  p(scene,'barreiraObra',-9,55,1.7,Math.PI/2);
   // Placas de "PARE" e pontos de ônibus na calçada — usando o mesmo ponto de
   // referência das árvores/postes já existentes em world.js (x/z = quarteirão+9),
   // que é a faixa de calçada livre entre a rua e os lotes dos prédios.
   const pPare = fraco ? 4 : 2, pOnibus = fraco ? 8 : 4;
   for (let bx = -10; bx <= 10; bx += pPare) for (let bz = -10; bz <= 10; bz += pPare) p(scene, 'pare', bx * 100 + 9, bz * 100 + 9, 2.2, Math.PI / 2);
-  for (let bx = -9; bx < 10; bx += pOnibus) for (let bz = -9; bz < 10; bz += pOnibus) p(scene, 'pontoOnibus', bx * 100 + 9, bz * 100 + 20, 3.4, -Math.PI / 2);
+  const mapaPonto=document.createElement('canvas');mapaPonto.width=256;mapaPonto.height=256;const ctxPonto=mapaPonto.getContext('2d');
+  ctxPonto.fillStyle='#f1e7d3';ctxPonto.fillRect(0,0,256,256);ctxPonto.strokeStyle='#547888';ctxPonto.lineWidth=10;
+  for(let i=35;i<256;i+=55){ctxPonto.beginPath();ctxPonto.moveTo(i,45);ctxPonto.lineTo(i,220);ctxPonto.stroke();ctxPonto.beginPath();ctxPonto.moveTo(20,i);ctxPonto.lineTo(236,i);ctxPonto.stroke();}
+  ctxPonto.fillStyle='#102837';ctxPonto.font='bold 23px sans-serif';ctxPonto.fillText('CITY RUSH • BUS',20,28);ctxPonto.fillStyle='#d6a22f';ctxPonto.beginPath();ctxPonto.arc(145,145,12,0,Math.PI*2);ctxPonto.fill();
+  const mapaMat=new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(mapaPonto),side:THREE.DoubleSide});mapaMat.map.colorSpace=THREE.SRGBColorSpace;
+  for(let bx=-9;bx<10;bx+=pOnibus)for(let bz=-9;bz<10;bz+=pOnibus){
+    const x=bx*100+9,z=bz*100+20;
+    const abrigo=p(scene,'pontoOnibus',x,z,4.5,-Math.PI / 2);
+    p(scene,'placaPonto',x,z+3,2.4,-Math.PI/2);
+    if(abrigo){const painel=new THREE.Mesh(new THREE.PlaneGeometry(.75,.9),mapaMat);painel.position.set(x+.65,1.7,z+.9);painel.rotation.y=-Math.PI/2;scene.add(painel);objetos.push(painel);total++;}
+  }
   // Outdoors espalhados perto de algumas ruas principais.
   for (let i = 0; i < (fraco ? 4 : 12); i++) p(scene, 'outdoor', Math.round(R(-9, 9)) * 100 + 9, Math.round(R(-9, 9)) * 100 + 50, 6, Math.PI / 2);
   // Caixas eletrônicas em frente a mercados/postos. Casas ficam sem grades.
   LUGARES.forEach(l => {
     if (l.tipo === 'mercado' || l.tipo === 'posto') p(scene, 'caixaEletronico', l.x + 8, l.z - 8, 1.6, R(0, Math.PI * 2));
+  });
+  LUGARES.filter(l=>l.tipo==='mercado'||l.tipo==='posto').forEach(l=>{
+    p(scene,'guardaSolNovo',l.x+11,l.z+10,2.7);
+    p(scene,'banco',l.x+11,l.z+7,1.65,Math.PI/2);
   });
   // Novos pontos do pack: detalhes de rua e fachadas, com quantidade limitada para manter desempenho.
   const detalhes = [
@@ -107,7 +144,14 @@ export function criarDecoracoes(scene, fraco) {
     }
     // As casas especiais ficam orientadas para a rua da frente, em vez de girarem
     // aleatoriamente como os prédios; assim a entrada e o caminho ficam coerentes.
-    if(!l.casa)p(scene, modelo, l.x, l.z, tamanho, (i % 4) * Math.PI / 2);
+    if(!l.casa){
+      const predio=p(scene,modelo,l.x,l.z,tamanho,(i%4)*Math.PI/2);
+      if(predio&&!l.medieval&&i%(fraco?4:2)===0){
+        const limite=new THREE.Box3().setFromObject(predio),w=Math.min(5.2,limite.max.x-limite.min.x-1);
+        const toldo=p(scene,'toldoNovo',l.x,limite.max.z-.2,w);if(toldo)toldo.position.y=2.65;
+        if(!fraco){const marquise=p(scene,'marquiseNova',l.x,limite.max.z-.3,w);if(marquise)marquise.position.y=5.3;}
+      }
+    }
     if (l.casa) {
       const pedra = new THREE.MeshStandardMaterial({ color: 0xb9b5aa, roughness: .92 });
       const madeira = new THREE.MeshStandardMaterial({ color: 0x76503a, roughness: .78 });

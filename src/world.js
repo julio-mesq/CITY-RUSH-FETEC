@@ -1,10 +1,17 @@
 // Mundo: ruas, prédios (InstancedMesh), praia, montanhas e ciclo dia/noite.
 import * as THREE from 'three';
 import { casaDefinida } from './casas-catalogo.js';
+import { criarSuperficiesUrbanas } from './street-surfaces.js';
 export const INT = { on: false, x: 3000, z: 3000, tipo: 'mercado', w: 16, d: 12, casa: 0, colisores:[] }; // interiores separados da cidade
 export const LUGARES = [];
 export const PREDIOS_PACK = []; // lotes com modelos detalhados
 export const MUROS_BAIXOS = [];
+// Atualiza somente o lote cujo exterior GLB acabou de ser colocado.
+export function alinharColisorPredio(x,z,w,d){
+  const arr=lotes.get((Math.floor(x/100)+128)*512+(Math.floor(z/100)+128))||[];
+  const c=arr.find(c=>Math.abs(c.x-x)<.01&&Math.abs(c.z-z)<.01);
+  if(c){c.w=w/2;c.d=d/2;}
+}
 const lotes = new Map(); // colisão: prédios por quarteirão (100x100)
 const R = (a, b) => a + Math.random() * (b - a);
 
@@ -74,6 +81,8 @@ export function criarMundo(scene, fraco, luzes) {
   const texConcreto = texturaUrbana('#777f83', 16); texConcreto.repeat.set(120, 120);
   const chao = new THREE.Mesh(new THREE.PlaneGeometry(2400, 2400), new THREE.MeshStandardMaterial({ color: 0x9da4a7, map: texConcreto, roughness: .97, metalness: .01 }));
   chao.rotation.x = -Math.PI / 2; chao.receiveShadow = !fraco; scene.add(chao);
+
+  criarSuperficiesUrbanas(scene,fraco);
 
   // Asfalto com granulação, dupla faixa amarela e limites refletivos.
   const tv = texturaUrbana('#20262a', 22); tv.repeat.set(1.4, 200);

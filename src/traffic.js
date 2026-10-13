@@ -24,12 +24,12 @@ export function criarSemaforos(scene) {
     // Dois braços por esquina: um sinal para cada direção da avenida.
     m.compose(new THREE.Vector3(x-3.5,6.35,z),q,s);bracos.setMatrixAt(n*2,m);
     const qx=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2);m.compose(new THREE.Vector3(x,6.35,z-3.5),qx,s);bracos.setMatrixAt(n*2+1,m);
-    m.compose(new THREE.Vector3(x+.02,5.4,z-.02),q,s);caixas.setMatrixAt(n*2,m);m.compose(new THREE.Vector3(x-.02,5.4,z+.02),qx,s);caixas.setMatrixAt(n*2+1,m);
+    m.compose(new THREE.Vector3(x-3.5,5.4,z),q,s);caixas.setMatrixAt(n*2,m);m.compose(new THREE.Vector3(x,5.4,z-3.5),qx,s);caixas.setMatrixAt(n*2+1,m);
     const qz=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI),qxL=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-Math.PI/2);
     let an=n*12;
     for(const lado of [-1,1]){
-      for(const [o,y] of [[rz,6],[az,5.4],[vz,4.8]]){m.compose(new THREE.Vector3(x+.02,y,z+lado*.325),qz,s);o.setMatrixAt(n*2+(lado===1?1:0),m);aro.setMatrixAt(an++,m);}
-      for(const [o,y] of [[rx,6],[ax,5.4],[vx,4.8]]){m.compose(new THREE.Vector3(x+lado*.325,y,z+.02),qxL,s);o.setMatrixAt(n*2+(lado===1?1:0),m);aro.setMatrixAt(an++,m);}
+      for(const [o,y] of [[rz,6],[az,5.4],[vz,4.8]]){m.compose(new THREE.Vector3(x-3.5,y,z+lado*.325),qz,s);o.setMatrixAt(n*2+(lado===1?1:0),m);aro.setMatrixAt(an++,m);}
+      for(const [o,y] of [[rx,6],[ax,5.4],[vx,4.8]]){m.compose(new THREE.Vector3(x+lado*.325,y,z-3.5),qxL,s);o.setMatrixAt(n*2+(lado===1?1:0),m);aro.setMatrixAt(an++,m);}
     }
     n++;
   }
@@ -47,7 +47,7 @@ export function criarSemaforos(scene) {
 // Lista em escopo de módulo (não recriada a cada carro) e exportada para main.js dimensionar a frota de trânsito
 // de forma que TODOS os tipos apareçam pelo menos uma vez (antes, com só 10 carros de trânsito e 14 tipos aqui,
 // os 4 últimos — van, pickup, onibus, moto2 — nunca eram sorteados).
-export const TIPOS_TRANSITO = [0, 1, 2, 6, 5, 3, 8, 9, 10, 11, 13, 14, 15, 16, 17];
+export const TIPOS_TRANSITO = [0, 19, 1, 22, 2, 20, 6, 21, 5, 3, 13, 16, 17, 14, 15, 8, 9, 10, 11];
 export class Transito {
   constructor(scene, i) { this.c = new Carro(scene, 0, 0, MODELOS[TIPOS_TRANSITO[i % TIPOS_TRANSITO.length]], 0); this.vel = 9 + Math.random() * 4; this.pausa = 0; this.reset(); }
   reset() { this.eixo = Math.random() < .5 ? 'z' : 'x'; this.dir = Math.random() < .5 ? 1 : -1; this.rua = Math.round((Math.random() * 2 - 1) * 8) * 100; this.pos = (Math.random() * 2 - 1) * 800; this.aplicar(); }

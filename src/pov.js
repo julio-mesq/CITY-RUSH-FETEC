@@ -13,8 +13,8 @@ export function atualizarCamera(cam, agora, dt, jog, pov, fovMira = 0) {
   const yaw = c ? c.yaw + jog.olho : (jog.cameraYaw ?? jog.yaw); let fov = 70;
   if (c && pov === 1) pov = 4; if (pov === 4 && !c) pov = 0;
   if (pov === 4) {
-    const lx = -c.m.w * .22, lz = -.04, co = Math.cos(c.yaw), si = Math.sin(c.yaw);
-    const altura = Math.max(.9, Math.min(1.35, c.m.h * .67));
+    const lx = c.olhoInterior?.x ?? -c.m.w * .22, lz = c.olhoInterior?.z ?? -.04, co = Math.cos(c.yaw), si = Math.sin(c.yaw);
+    const altura = c.olhoInterior?.y ?? Math.max(.9, Math.min(1.35, c.m.h * .67));
     cam.position.set(a.x + lx * co + lz * si, a.y + altura, a.z - lx * si + lz * co);
     cam.rotation.set(jog.pitch, yaw, 0, 'YXZ'); fov = 76;
   }

@@ -2,6 +2,7 @@
 // materiais compartilhados e paleta por estilo de casa. Origem = centro do móvel no chão;
 // com ry = 0 a frente aponta para -z (veja casa-layout.js).
 import * as THREE from 'three';
+import * as Assets from './assets.js';
 
 // ---------------------------------------------------------------- materiais compartilhados
 const cache = new Map();
@@ -277,6 +278,17 @@ const B = {
 B.sofa2 = B.sofa; B.mesa = B.mesaJantar;
 
 export function criarMovel(tipo, w, d, h) {
+  const chave=tipo==='sofa2'?'sofa':tipo==='mesa'?'mesaJantar':tipo;
+  const modelo=Assets.clonarCena('mobVisual_'+chave);
+  if(modelo){
+    // Mantém o móvel dentro do volume usado pelas colisões/layout existentes.
+    modelo.rotation.y=Math.PI;modelo.updateMatrixWorld(true);
+    const box=new THREE.Box3().setFromObject(modelo),size=box.getSize(new THREE.Vector3()),centro=box.getCenter(new THREE.Vector3());
+    const escala=Math.min(w/Math.max(size.x,.001),h/Math.max(size.y,.001),d/Math.max(size.z,.001));
+    const base=new THREE.Group(),encaixe=new THREE.Group();encaixe.add(modelo);encaixe.position.set(-centro.x,-box.min.y,-centro.z);base.add(encaixe);base.scale.setScalar(escala);
+    modelo.traverse(o=>{if(o.isMesh){o.geometry=o.geometry.clone();o.castShadow=false;o.receiveShadow=true;}});
+    base.userData.tipoMovel=tipo;base.userData.modeloGLB=chave;return base;
+  }
   const f = B[tipo]; const g = f ? f(w, d, h) : B.caixaFerramentas(w, d, h);
   g.userData.tipoMovel = tipo; return g;
 }

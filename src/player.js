@@ -29,6 +29,9 @@ const TIPOS_HUMANO = {
   mulher2: { chave: 'mulher2', prefixo: 'Armature|', idle: 'Idle', andar: 'Walking', correr: 'Running', soco: 'Punch', mao: 'RightHand', altura: 1.72, rotY: Math.PI },
   soldado: { chave: 'soldado', prefixo: 'Armature|', idle: 'Standing', andar: 'Standing', correr: 'Standing', soco: 'Standing', mao: 'hand.R', altura: 1.78, rotY: Math.PI },
 };
+for(const [nome,chave] of Object.entries({miniCivilA:'miniCivilA',miniCivilB:'miniCivilB',miniCivilC:'miniCivilC',miniPolicial:'miniPolicial',miniFuncionario:'miniFuncionario'})){
+  TIPOS_HUMANO[nome]={chave,prefixo:'',idle:'idle',andar:'walk',correr:'sprint',soco:'attack-melee-right',mao:'arm-right',altura:1.78,rotY:Math.PI,mini:true};
+}
 // Material.name -> qual parâmetro de cor de criarHumano() tinge aquele material.
 const TINGIVEIS = { cor: ['Suit', 'Shirt', 'Jacket'], calca: ['Pants'], cabelo: ['Hair', 'HairBase'], pele: ['Skin'] };
 export function aplicarAparencia(g,cores){
@@ -62,7 +65,7 @@ export function criarHumano(cor, pele = 0xe0ac82, cabelo = 0x2b1b12, calca = 0x2
     const roll = clipes.find(c => /\|Roll$/.test(c.name));
     // Remove deslocamento embutido no clipe: a colisão controla o movimento.
     const rollLocal = roll?.clone(); if (rollLocal) rollLocal.tracks = rollLocal.tracks.filter(t => !t.name.endsWith('.position'));
-    const jump = pegar('Jump');
+    const jump = pegar(def.mini?'jump':'Jump');
     const tracks = [];
     if (!jump) for (const [nome,amplitude] of [['UpperLeg.L',-.9],['UpperLeg.R',-.55],['LowerLeg.L',1.1],['LowerLeg.R',.8],['UpperArm.L',-.6],['UpperArm.R',-.6]]) {
       const b = cena.getObjectByName(nome); if (b) tracks.push(new THREE.NumberKeyframeTrack(b.uuid+'.rotation[x]',[0,.16,.45,.75],[b.rotation.x,b.rotation.x+amplitude,b.rotation.x+amplitude*.7,b.rotation.x]));
@@ -80,8 +83,11 @@ export function criarHumano(cor, pele = 0xe0ac82, cabelo = 0x2b1b12, calca = 0x2
       const ajustada = new THREE.Box3().setFromObject(cena, true);
       cena.position.y -= ajustada.min.y;
     }
-    g.userData = { modelo3d: true, mixer, acoes, animAtual: 'idle', mao: cena.getObjectByName(def.mao) || null, tipoModelo:tipoNpc, gun: null, muzzle: null, cena3d:cena,agachamento:0 };
-    if(estilo?.acessorio==='policia')cena.traverse(o=>{if(!o.isMesh)return;const mats=Array.isArray(o.material)?o.material:[o.material];for(const material of mats){if(/shirt|pants|socks|shoes/i.test(material.name)){material.color.setHex(/shirt/i.test(material.name)?0x24394c:0x17222e);material.roughness=.9;}}});
+    g.userData = { miniRig:!!def.mini, modelo3d: true, mixer, acoes, animAtual: 'idle', mao: cena.getObjectByName(def.mao) || null, tipoModelo:tipoNpc, gun: null, muzzle: null, cena3d:cena,agachamento:0 };
+    if(def.mini&&g.userData.mao){
+      const socket=new THREE.Object3D();socket.name='MiniPalm.R';socket.position.set(-.26,0,.03);g.userData.mao.add(socket);g.userData.mao=socket;
+    }
+    if(estilo?.acessorio==='policia'&&!def.mini)cena.traverse(o=>{if(!o.isMesh)return;const mats=Array.isArray(o.material)?o.material:[o.material];for(const material of mats){if(/shirt|pants|socks|shoes/i.test(material.name)){material.color.setHex(/shirt/i.test(material.name)?0x24394c:0x17222e);material.roughness=.9;}}});
   } else {
     // ---- reserva procedural (usada só se o modelo 3D ainda não carregou) ----
     const L = (c, r = .85) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
@@ -107,7 +113,7 @@ export function criarHumano(cor, pele = 0xe0ac82, cabelo = 0x2b1b12, calca = 0x2
       P(new THREE.SphereGeometry(.13, 16, 12, 0, 6.283, 0, 1.35), cabelo, 0, 1.78, .01, .6), P(new THREE.SphereGeometry(.12, 12, 10), cabelo, 0, 1.74, .05, .6),
       P(new THREE.SphereGeometry(.08, 10, 8), cor, -.26, 1.5, 0), P(new THREE.SphereGeometry(.08, 10, 8), cor, .26, 1.5, 0), g.userData.pe, g.userData.pd, g.userData.be, g.userData.bd);
   }
-  if (estilo?.acessorio) {
+  if (estilo?.acessorio && !def.mini) {
     // Acessórios de cabeça seguem a altura real do modelo carregado. Os GLBs têm
     // esqueletos e proporções diferentes; uma altura fixa fazia o chapéu flutuar.
     const caixaAcessorio=new THREE.Box3().setFromObject(g,true),topoCabeca=Number.isFinite(caixaAcessorio.max.y)?caixaAcessorio.max.y:1.82;
@@ -168,7 +174,11 @@ export function atualizarArmaTerceiraPessoa(g, mirando=false, ocultar=false) {
   arma.visible=!ocultar;if(ocultar)return;
   const i=arma.userData.indice||0;
   const escala=ESCALA_TP[i]||1;arma.scale.setScalar(escala);
-  if(mirando&&u.modelo3d){
+  if(mirando&&u.miniRig){
+    if(!u.miniMira){const clip=Assets.animacoesDe(u.tipoModelo).find(c=>c.name==='holding-both-shoot');u.miniMira=['arm-right','arm-left'].map(nome=>({osso:g.getObjectByName(nome),track:clip?.tracks.find(t=>t.name===nome+'.quaternion')}));}
+    u.poseArma=[];for(const p of u.miniMira)if(p.osso&&p.track){u.poseArma.push({osso:p.osso,q:p.osso.quaternion.clone()});p.osso.quaternion.fromArray(p.track.values,0);}g.updateMatrixWorld(true);
+  }
+  if(mirando&&u.modelo3d&&!u.miniRig){
     const ajustes=[['UpperArm.R',-1.02,.12],['LowerArm.R',-.58,0],['UpperArm.L',-1.08,-.16],['LowerArm.L',-.72,0]],pose=[];
     if(!u.ossosMira)u.ossosMira=ajustes.map(([nome])=>g.getObjectByName(nome)); // procurar por nome a cada quadro percorria o esqueleto inteiro
     ajustes.forEach(([nome,rx,rz],k)=>{const osso=u.ossosMira[k];if(!osso)return;pose.push({osso,q:osso.quaternion.clone()});osso.rotateX(rx);if(rz)osso.rotateZ(rz);});
@@ -191,6 +201,7 @@ export function atualizarArmaTerceiraPessoa(g, mirando=false, ocultar=false) {
     if(mao)arma.position.copy(mao);
     else arma.position.set(.29,1.32,-.34);
     AJUSTE_Q.setFromEuler(new THREE.Euler(i===5?.02:-.08,Math.PI,i===0?.04:0,'YXZ'));arma.quaternion.multiply(AJUSTE_Q);
+    if(u.miniRig)arma.quaternion.identity();
     corrigirSentidoCano(arma,u.muzzle,.45); // mirando: o cano precisa apontar para a frente
   }else{
     // Posição relaxada: a empunhadura continua dentro da mão, com o cano para

@@ -9,6 +9,7 @@ import { Jogador, teclas, animar, trocarArma, pontaDaArma, atualizarArmaTerceira
 import { Carro, MODELOS } from './src/vehicles.js';
 import { criarNPCs, criarOrganizador } from './src/npcs.js';
 import { ARMAS, ICONES_ARMA, FORMAS } from './src/weapons.js';
+import { criarMaosGLB } from './src/fps-hands.js';
 import { criarVisualArma } from './src/weapon-models.js';
 import * as Assets from './src/assets.js';
 import * as A from './src/audio.js';
@@ -153,6 +154,33 @@ function liberarCondutor() {
   const u = jog.obj.userData;
   u.poseCondutor=null;u.tipoCondutor=null;u.acoes?.idle?.reset().play(); u.animAtual = 'idle';
 }
+// Transição exclusiva dos veículos: aproximar, abrir, entrar/montar e fechar.
+let transicaoVeiculo=null;
+function iniciarEntradaVeiculo(c){
+  if(transicaoVeiculo||c.destruido||c.guardado)return;
+  c.v=0;jog.vx=jog.vz=0;jog.mira=false;
+  const u=jog.obj.userData;u.mixer?.stopAllAction();u.acoes?.idle?.reset().play();u.mixer?.update(0);
+  posarCondutor(c);const sentada=new Map();
+  for(const nome of ossosCondutor){const o=jog.obj.getObjectByName(nome);if(o)sentada.set(nome,o.quaternion.clone());}
+  liberarCondutor();u.mixer?.stopAllAction();
+  const emPe=new Map();for(const nome of ossosCondutor){const o=jog.obj.getObjectByName(nome);if(o)emPe.set(nome,o.quaternion.clone());}
+  c.obj.updateMatrixWorld(true);
+  const banco=new THREE.Vector3();c.encaixeCondutor.getWorldPosition(banco);
+  const lado=c.obj.localToWorld(new THREE.Vector3((c.ladoCondutor||-1)*(c.m.w*.5+.55),0,c.m.portaFrente!==undefined?(c.m.portaFrente+c.m.portaTras)/2:-c.m.l*.08));
+  transicaoVeiculo={c,t:0,inicio:jog.obj.position.clone(),lado,banco,sentada,emPe,povAnterior:pov};pov=0;
+}
+function atualizarEntradaVeiculo(dt){
+  const a=transicaoVeiculo;if(!a)return;const c=a.c;a.t+=dt;
+  if(c.destruido||jog.morto){c.portaAbertura=0;transicaoVeiculo=null;liberarCondutor();jog.obj.scale.setScalar(1);pov=a.povAnterior;return;}
+  const duracao=c.duasRodas?1.35:1.65,p=Math.min(1,a.t/duracao),suave=x=>x*x*(3-2*x),aproxima=suave(Math.min(1,p/.28)),senta=suave(Math.max(0,Math.min(1,(p-.35)/.48)));
+  jog.obj.position.copy(a.inicio).lerp(a.lado,aproxima).lerp(a.banco,senta);
+  jog.obj.scale.setScalar(1+(c.encaixeCondutor.userData.escala-1)*senta);jog.obj.rotation.y=c.yaw;jog.obj.visible=true;
+  for(const [nome,q] of a.emPe){const o=jog.obj.getObjectByName(nome);o.quaternion.copy(q).slerp(a.sentada.get(nome),senta);}
+  if(c.duasRodas){const perna=jog.obj.getObjectByName('UpperLeg.R');if(perna)perna.rotateZ(-Math.sin(Math.PI*senta)*.9);}
+  else{c.portaAbertura=p<.28?suave(p/.28):p>.83?1-suave((p-.83)/.17):1;const braco=jog.obj.getObjectByName('UpperArm.R');if(braco&&p<.45)braco.rotateX(-Math.sin(Math.PI*Math.min(1,p/.45))*.85);}
+  jog.obj.updateMatrixWorld(true);
+  if(p>=1){c.portaAbertura=0;jog.veiculo=c;ultimoVeiculo=c;jog.olho=0;posarCondutor(c);pov=a.povAnterior;transicaoVeiculo=null;}
+}
 const frota = new Map(); // carros comprados (garagem)
 function chamar(i) {
   let c = frota.get(i); const p = jog.obj.position;
@@ -174,6 +202,7 @@ const FP_MIRA=_fp([
   {x:.2,y:-.17,z:-.5,s:.78},{x:.21,y:-.19,z:-.55,s:.56},{x:.22,y:-.2,z:-.6,s:.52},
   {x:.22,y:-.2,z:-.62,s:.52},{x:.23,y:-.2,z:-.64,s:.46},{x:.24,y:-.24,z:-.66,s:.46}
 ],false);
+let maosGLB=null;
 function bracosFP(i){
   const g=new THREE.Group(),matPele=new THREE.MeshStandardMaterial({color:personagem.pele??0xd9a376,roughness:.82}),matManga=new THREE.MeshStandardMaterial({color:personagem.camisa??0x243b55,roughness:.88});
   const V=(x,y,z)=>new THREE.Vector3(x,y,z);
@@ -190,10 +219,10 @@ function bracosFP(i){
   return g;
 }
 function armaFP(i) {
-  fp.clear(); fpMuzzle = null;
+  fp.clear(); fpMuzzle = null; maosGLB=null;
   const visual = criarVisualArma(i); if (!visual) return;
   visual.traverse(n => { if (n.isMesh) { n.frustumCulled = false; n.castShadow = false; } });
-  fp.add(visual,bracosFP(i)); fpMuzzle = visual.userData.muzzle;
+  maosGLB=criarMaosGLB(i,FORMAS[i]?.[2]||.3);fp.add(visual,maosGLB||bracosFP(i)); fpMuzzle = visual.userData.muzzle;
 }
 armaFP(0);
 
@@ -417,6 +446,7 @@ addEventListener('keydown', e => {
   if (k === 'KeyR' && arsenal.recarregar(arma)) A.click();
   if (/^Digit[1-7]$/.test(k)) {const n=+k.slice(5)-1;if(!equiparArma(n))return UI.notificar('Compre ou desbloqueie esta arma primeiro.');}
   if (k === 'KeyH' && jog.veiculo) A.buzina();
+  if(k==='KeyL'&&jog.veiculo&&!e.repeat){const c=jog.veiculo;c.farolManual=!(c.farolManual??c.farolLigado);UI.notificar(c.farolManual?'Faróis ligados':'Faróis desligados');}
   if (k === 'KeyG' && !jog.veiculo) {
     const revivido=Online.reanimarProximo(jog.obj.position,INT.on?INT.tipo+':'+(INT.tipo==='casa'?INT.casa:0):'world');
     if(revivido)UI.notificar('Você reanimou '+revivido+'!');
@@ -424,7 +454,7 @@ addEventListener('keydown', e => {
     else if (npcs.some(n => !n.policia && n.obj.position.distanceTo(jog.obj.position) < 6)) Esc.abrir();
   }
   if (k === 'KeyE' && !e.repeat) {
-    if(performance.now()-ultimaInteracao<600 || jog.rolando || jog.salto)return;ultimaInteracao=performance.now();
+    if(transicaoVeiculo||performance.now()-ultimaInteracao<600 || jog.rolando || jog.salto)return;ultimaInteracao=performance.now();
     const p = jog.obj.position;
     if (jog.veiculo) {
       const c = jog.veiculo, q = c.obj.position;
@@ -445,7 +475,7 @@ addEventListener('keydown', e => {
       }
     } else if (INT.on) {
       const estacionado=['oficina','casa'].includes(INT.tipo)&&carros.find(c=>!c.guardado&&c.obj.visible&&c.obj.position.distanceTo(p)<4.5);
-      if(estacionado){jog.veiculo=estacionado;ultimoVeiculo=estacionado;jog.olho=0;jog.obj.userData.mixer?.stopAllAction();posarCondutor(estacionado);return;}
+      if(estacionado){iniciarEntradaVeiculo(estacionado);return;}
       const portaPerto=INT.tipo==='casa'?interior.portaProxima(p.x,p.z):null;
       if(portaPerto){const r=interior.alternarPorta(portaPerto,p.x,p.z);A.click();if(r==='bloqueada')UI.notificar('Saia da frente da porta para fechá-la.');return;}
       const naSaida = p.z > INT.z + INT.d / 2 - 2.1;
@@ -459,7 +489,7 @@ addEventListener('keydown', e => {
       else if (naSaida) sair(); else UI.notificar('Chegue perto do balcão para comprar ou volte à porta.');
     } else {
       const c = carros.find(v => !v.destruido && v.obj.visible && v.obj.position.distanceTo(p) < 5), l = LUGARES.find(l => Math.hypot(l.x - p.x, l.z - p.z) < 26);
-      if (c) { jog.veiculo = c; ultimoVeiculo = c; jog.olho = 0; jog.obj.userData.mixer?.stopAllAction(); posarCondutor(c); }
+      if (c) { iniciarEntradaVeiculo(c); }
       else if (l) l.tipo === 'casa' ? casa(l) : entrar(l);
     }
     A.click();
@@ -500,7 +530,7 @@ function todosCarrosTiro() { const l = listaCarrosTiro; l.length = 0; for (const
 const listaCarrosTiro = [];
 function atirar(t) {
   const a = ARMAS[arma];
-  if (jog.veiculo || jog.morto || jog.rolando || jog.salto || t < tiroT + a.cad) return;
+  if (transicaoVeiculo || jog.veiculo || jog.morto || jog.rolando || jog.salto || t < tiroT + a.cad) return;
   if (a.melee) { tiroT = t; socar(jog); return; }
   if (!arsenal.disparar(arma)) { if(municao[arma]<=0)arsenal.recarregar(arma); return; }
   tiroT = t; A.tiro(arma); jog.pitch = Math.min(1, jog.pitch + .006 * (arma + 1)); // recuo
@@ -575,7 +605,7 @@ function loop(agora) {
   if((conqT+=dt)>=1){conqT=0;const td=Tel.dados();const novas=Conq.avaliar({tempo:tempoJogo,carros:td.garagem.length,casas:td.casas.length,missoes:M.indice(),estrelas,kills:rec.kills,rep:Prog.nivel(),dinheiro:jog.dinheiro,corrida:rec.corrida,custom:Object.keys(customizacoes).length,online:Online.conectado()});if(novas.length){novas.forEach(c=>UI.notificar('🏆 Conquista: '+c.nome));gravar();}}
   if(!telaAberta)arsenal.atualizar(dt);
   if(mobile)jog.mira=!!teclas.Mouse2 && !telaAberta;
-  if(!telaAberta){
+  if(!telaAberta&&!transicaoVeiculo){
     // Subpassos mantêm aceleração, corrida e colisões suaves mesmo quando um
     // quadro demora mais no celular ou durante o carregamento de um GLB.
     const passos=Math.max(1,Math.min(3,Math.ceil(dt/(1/60)))),sub=dt/passos;
@@ -584,7 +614,7 @@ function loop(agora) {
   }
   carros.forEach(c=>{if(c!==jog.veiculo&&(!INT.on||c===ultimoVeiculo))c.atualizar(dt,false);});
   const escuro = Math.sin(tempoDia * Math.PI * 2) < .12;
-  carros.forEach(c => c.definirFarol(c === jog.veiculo && escuro)); atualizarPainel(jog.veiculo);
+  carros.forEach(c => c.definirFarol(c === jog.veiculo && (c.farolManual??escuro))); atualizarPainel(jog.veiculo);
   mobileUI.atualizar();
   const miraAtiva = jog.mira && !jog.veiculo && !jog.morto && arma < 6;
   document.body.classList.toggle('aiming', miraAtiva);
@@ -592,6 +622,7 @@ function loop(agora) {
   document.body.classList.toggle('scope', miraAtiva && pov === 1 && arma === 4);
   const fpAlvo = (miraAtiva && pov === 1 ? FP_MIRA : FP_QUADRIL)[Math.min(arma,5)];
   fp.position.x += (fpAlvo.x-fp.position.x)*(1-Math.exp(-14*dt)); fp.position.y += (fpAlvo.y-fp.position.y)*(1-Math.exp(-14*dt)); fp.position.z += (fpAlvo.z-fp.position.z)*(1-Math.exp(-14*dt));
+  if(pov===1&&!jog.veiculo)maosGLB?.userData.atualizar(arsenal.recarga);
   const fpEscala=fp.scale.x+(fpAlvo.s-fp.scale.x)*(1-Math.exp(-14*dt));fp.scale.setScalar(fpEscala);
   const novoArmaHud=arma+':'+municao[arma]+':'+arsenal.reserva[arma];if(novoArmaHud!==armaHudEstado){armaHudEstado=novoArmaHud;$('weaponIcon').textContent = ICONES_ARMA[arma]; $('weaponName').textContent = ARMAS[arma].n.toUpperCase(); $('weaponAmmo').textContent = ARMAS[arma].melee ? 'CORPO A CORPO' : municao[arma] + ' / ' + arsenal.reserva[arma];}
   $('weaponCurrent').style.visibility = jog.veiculo ? 'hidden' : 'visible';
@@ -661,13 +692,17 @@ function loop(agora) {
     jog.obj.scale.x = jog.obj.scale.z = 1; jog.obj.rotation.z = 0;
     jog.obj.visible = pov !== 1 || jog.morto;
   }
-  atualizarArmaTerceiraPessoa(jog.obj,(jog.mira||teclas.Mouse0)&&!jog.veiculo,!!jog.veiculo||pov===1||jog.morto);
+  if(!telaAberta)atualizarEntradaVeiculo(dt);
+  for(const c of carros)c.animarVisual(dt,c===jog.veiculo);
+  for(const t of transito){t.c.definirFarol(escuro);t.c.animarVisual(dt);}
+  for(const c of policia.carros)c.animarVisual(dt);
+  atualizarArmaTerceiraPessoa(jog.obj,(jog.mira||teclas.Mouse0)&&!jog.veiculo,!!jog.veiculo||!!transicaoVeiculo||pov===1||jog.morto);
   fp.visible = pov === 1 && !jog.veiculo && !jog.morto && arma < 6;
   atualizarCamera(cam, agora, dt, jog, pov, jog.mira && !jog.veiculo ? (arma === 4 ? 18 : 42) : 0); ceu(tempoDia, alvo);
   luzes.atualizar(dt, jog.obj.position, INT.on);
   { // farol e neon: uma luz fixa de cada, apenas movida/intensificada (sem recompilar shaders)
     const cf = jog.veiculo;
-    if (cf && escuro && cf.focoFarol) { cf.focoFarol.getWorldPosition(farolGlobal.position); cf.focoAlvo.getWorldPosition(farolGlobal.target.position); farolGlobal.intensity = 28; }
+    if (cf && cf.farolLigado && cf.focoFarol) { cf.focoFarol.getWorldPosition(farolGlobal.position); cf.focoAlvo.getWorldPosition(farolGlobal.target.position); farolGlobal.intensity = 28; }
     else farolGlobal.intensity = 0;
     if (neonGlobal) {
       const cn = jog.veiculo || ultimoVeiculo;

@@ -8,6 +8,7 @@ import { teclas } from './player.js';
 import { colide } from './world.js';
 import * as Assets from './assets.js';
 import { passoDrift } from './mechanics.js';
+import { prepararDinamica, atualizarDinamica } from './vehicle-dynamics.js';
 
 export const MODELOS = [
   { marca: 'City', nome: 'Hatch Compacto', cor: 0xd9d9d9, w: 1.7, h: 1.4, l: 3.9, cab: .55, vmax: 30, acel: 12, preco: 9000, glb: 'carroCompacto' },
@@ -18,30 +19,34 @@ export const MODELOS = [
   { marca: 'Utility', nome: 'Van de Carga', cor: 0xf2f2f2, w: 2, h: 2.5, l: 5.6, cab: .8, vmax: 27, acel: 10, roda: .45, preco: 45000, glb: 'van' },
   { marca: 'Táxi', nome: 'Sedã Amarelo', cor: 0xffc400, w: 1.8, h: 1.45, l: 4.5, cab: .5, vmax: 33, acel: 13, preco: 15000, glb: 'carroUrbano' },
   { marca: 'Polícia', nome: 'Viatura Urbana', cor: 0x1e3a8a, teto: 0xffffff, w: 1.9, h: 1.5, l: 4.7, cab: .5, vmax: 40, acel: 18, preco: 70000, glb: 'policial' },
-  // Novos, a partir dos modelos 3D enviados:
-  // Estes arquivos foram exportados olhando para -Z, ao contrário do City Kit.
-  // rotY: 0 é intencional: Math.PI repetia a rotação padrão e os fazia andar de ré.
-  { marca: 'Rolls-Royce', nome: 'Phantom', cor: 0x101010, w: 2, h: 1.5, l: 5.6, cab: .5, vmax: 42, acel: 16, preco: 600000, glb: 'rollsroyce', rotY: 0 },
-  { marca: 'Dodge', nome: 'Charger', cor: 0x8b0000, w: 1.95, h: 1.4, l: 5.1, cab: .45, vmax: 50, acel: 22, preco: 180000, glb: 'dodge', rotY: 0 },
-  { marca: 'Mazda', nome: 'RX-7', cor: 0x1e88e5, w: 1.8, h: 1.2, l: 4.3, cab: .4, vmax: 52, acel: 24, preco: 150000, glb: 'rx7', rotY: 0 },
-  { marca: 'Clássico', nome: 'Cupê Antigo', cor: 0x555555, w: 1.75, h: 1.4, l: 4.3, cab: .5, vmax: 26, acel: 11, preco: 12000, glb: 'antigo', rotY: 0 },
-  // Esta moto tem o eixo frontal invertido no arquivo original. A rotação extra
-  // deixa o farol apontado para a mesma direção usada pela física do jogo.
-  { marca: 'Moto', nome: 'Esportiva', cor: 0x222222, w: .8, h: 1.1, l: 2.1, cab: .4, vmax: 48, acel: 28, preco: 8000, glb: 'moto', rotY: Math.PI },
+  // GLBs gratuitos Kenney: orientação medida nas rodas dianteiras.
+  // Índices, preços e encaixes preservados para a garagem existente.
+  { marca: 'City', nome: 'SUV Executivo', cor: 0x101010, w: 2, h: 1.5, l: 5.6, cab: .5, vmax: 42, acel: 16, preco: 600000, glb: 'rollsroyce', rotY: 0 },
+  { marca: 'Sport', nome: 'Sedã Esportivo', cor: 0x8b0000, w: 1.95, h: 1.4, l: 5.1, cab: .45, vmax: 50, acel: 22, preco: 180000, glb: 'dodge', rotY: 0 },
+  { marca: 'Sport', nome: 'Coupé de Pista', cor: 0x1e88e5, w: 1.8, h: 1.2, l: 4.3, cab: .4, vmax: 52, acel: 24, preco: 150000, glb: 'rx7', rotY: 0 },
+  { marca: 'City', nome: 'Sedã Clássico', cor: 0x555555, w: 1.75, h: 1.4, l: 4.3, cab: .5, vmax: 26, acel: 11, preco: 12000, glb: 'antigo', rotY: 0 },
+  // Frente conferida no GLB: guidão e garfo estão no lado -Z.
+  { marca: 'Moto', nome: 'Esportiva', cor: 0x222222, w: .8, h: 1.1, l: 2.1, cab: .4, vmax: 48, acel: 28, preco: 8000, glb: 'moto', rotY: 0, frente: [0,0,-1], roda: .45 },
   // Novos, a partir do "City Pack":
   { marca: 'Sport', nome: 'Supercarro', cor: 0xffb400, w: 1.9, h: 1.1, l: 4.5, cab: .4, vmax: 56, acel: 27, preco: 380000, glb: 'lambo' },
   { marca: 'Utility', nome: 'Van Urbana', cor: 0xe8e2d0, w: 1.9, h: 2, l: 4.3, cab: .7, vmax: 24, acel: 9, preco: 22000, glb: 'van' },
   { marca: 'Utility', nome: 'Picape Utilitária', cor: 0x2f2f2f, w: 2, h: 1.8, l: 5.3, cab: .5, vmax: 30, acel: 12, roda: .5, preco: 48000, glb: 'pickup' },
-  { marca: 'Transporte', nome: 'Ônibus Urbano', cor: 0xffffff, w: 2.5, h: 3, l: 10, cab: .8, vmax: 22, acel: 6, roda: .5, preco: 150000, glb: 'onibus' },
-  { marca: 'Moto', nome: 'Trail', cor: 0x8b0000, w: .8, h: 1.2, l: 2.1, cab: .4, vmax: 44, acel: 24, preco: 7000, glb: 'moto2', rotY: 0 },
-  { marca: 'Bicicleta', nome: 'Urbana', cor: 0x1e88e5, w: .6, h: 1.1, l: 1.7, cab: .4, vmax: 13, acel: 8, preco: 400, glb: 'bike' },
+  { marca: 'Transporte', nome: 'Ônibus Urbano', cor: 0xffffff, w: 2.5, h: 3, l: 10, cab: .8, vmax: 22, acel: 6, roda: .5, preco: 150000, glb: 'onibus', frente: [0,0,1] },
+  { marca: 'Moto', nome: 'Trail', cor: 0x8b0000, w: .8, h: 1.2, l: 2.1, cab: .4, vmax: 44, acel: 24, preco: 7000, glb: 'moto2', rotY: 0, frente: [0,0,-1], roda: .25 },
+  { marca: 'Bicicleta', nome: 'Urbana', cor: 0x1e88e5, w: .6, h: 1.1, l: 1.7, cab: .4, vmax: 13, acel: 8, preco: 400, glb: 'bike', frente: [-1,0,0] },
+  { marca:'Serviço', nome:'Ambulância', cor:0xffffff, w:2, h:2.4, l:5.4, cab:.6, vmax:34, acel:12, preco:80000, glb:'ambulancia', portaFrente:-2.3, portaTras:-.9 },
+  { marca:'Serviço', nome:'Caminhão de Bombeiros', cor:0xc63a2f, w:2.3, h:2.8, l:7, cab:.4, vmax:27, acel:9, preco:110000, glb:'bombeiros', portaFrente:-3.0, portaTras:-1.6, roda:.48 },
+  { marca:'Serviço', nome:'Caminhão de Coleta', cor:0x3d7053, w:2.3, h:2.7, l:7, cab:.3, vmax:22, acel:8, preco:85000, glb:'coleta', portaFrente:-3.0, portaTras:-1.6, roda:.48 },
+  { marca:'Entrega', nome:'Furgão de Entregas', cor:0xe6d6b9, w:2, h:2.2, l:5.5, cab:.4, vmax:29, acel:12, preco:48000, glb:'entrega', portaFrente:-2.35, portaTras:-.9 },
+  {marca:'Spectral',nome:'GT-RS',cor:0x365771,w:2.05,h:1.34,l:4.65,cab:.5,vmax:56,acel:25,preco:190000,glb:'spectral',frente:[1,0,0],interiorReal:true},
 ];
 
 // A frente é medida pelos eixos dianteiros/faróis do próprio GLB, evitando
 // aplicar a mesma inversão a modelos exportados em direções diferentes.
 export function orientacaoVeiculo(modelo,m,caixa){
+  if(m.frente)return Math.atan2(m.frente[0],-m.frente[2]);
   const centro=caixa.getCenter(new THREE.Vector3()),frente=new THREE.Vector3();let n=0;
-  modelo.traverse(o=>{if(/front.*wheel|headlights/i.test(o.name)){const b=new THREE.Box3().setFromObject(o);if(!b.isEmpty()){frente.add(b.getCenter(new THREE.Vector3()));n++;}}});
+  modelo.traverse(o=>{if(/front.*wheel|wheel.*front|headlights|^FL_WHEEL|^FR_WHEEL/i.test(o.name)){const b=new THREE.Box3().setFromObject(o);if(!b.isEmpty()){frente.add(b.getCenter(new THREE.Vector3()));n++;}}});
   if(n){frente.multiplyScalar(1/n).sub(centro);if(Math.hypot(frente.x,frente.z)>.1)return Math.atan2(frente.x,-frente.z);}
   return (caixa.max.x-caixa.min.x>caixa.max.z-caixa.min.z?Math.PI/2:0)+(m.rotY??Math.PI);
 }
@@ -89,6 +94,13 @@ export class Carro {
         });
       });
       this.exterior = wrapper; this.obj.add(wrapper);
+      if(m.interiorReal){
+        this.obj.updateMatrixWorld(true);
+        const banco=modelo3d.getObjectByName('Driver_Seat_Base_Anchor');
+        if(banco){this.bancoReal=banco.getWorldPosition(new THREE.Vector3());this.obj.worldToLocal(this.bancoReal);this.olhoInterior=banco.getWorldPosition(new THREE.Vector3());this.obj.worldToLocal(this.olhoInterior);this.olhoInterior.y+=.66;this.olhoInterior.z-=.08;}
+        // O modelo já contém painel, assentos e vidros; mantém seu acabamento original.
+        this.partesPintura.length=0;wrapper.traverse(o=>{if(!o.isMesh)return;for(const mat of Array.isArray(o.material)?o.material:[o.material])if(/Spectral Blue|Shadow Panels|paint/i.test(mat.name||''))this.partesPintura.push(mat);});
+      }
     } else {
       // ---- carroceria procedural (usada quando o modelo não tem .glb ou ainda não carregou) ----
       const hb = m.h * .5, hc = m.h * .38, r = m.roda || .38, ilum = (c, i = 1.6) => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: i, roughness: .4 });
@@ -174,16 +186,20 @@ export class Carro {
       carroCompacto:[-.34,.14,-.35,.72], carroUrbano:[-.4,.16,-.48,.72], suv:[-.43,.38,-.4,.76], esportivoPack:[-.38,.06,-.35,.68],
       pickup:[-.48,.42,-.78,.77], van:[-.46,.62,-1.12,.78], policial:[-.42,.18,-.48,.72], rollsroyce:[-.43,.2,-.72,.72],
       dodge:[-.42,.18,-.54,.72], rx7:[-.38,.1,-.4,.68], antigo:[-.36,.24,-.42,.72], onibus:[-.7,1.05,-3.45,.82],
+      ambulancia:[-.44,.42,-1.2,.74],bombeiros:[-.55,.62,-2.1,.75],coleta:[-.55,.54,-2.0,.74],entrega:[-.44,.4,-1.0,.74],
       moto:[0,.13,.08,.82], moto2:[0,.15,.05,.82], bike:[0,.08,.02,.78]
     };
     const e=ENCAIXES[m.glb]||[-.4,.18,-.45,.72];
-    this.encaixeCondutor=new THREE.Object3D();this.encaixeCondutor.name='EncaixeCondutor';this.encaixeCondutor.position.set(e[0],e[1],e[2]);this.encaixeCondutor.userData.escala=e[3];this.obj.add(this.encaixeCondutor);
+    this.encaixeCondutor=new THREE.Object3D();this.encaixeCondutor.name='EncaixeCondutor';this.encaixeCondutor.position.set(e[0],e[1],e[2]);this.encaixeCondutor.userData.escala=e[3];if(this.bancoReal)this.encaixeCondutor.position.set(this.bancoReal.x,this.bancoReal.y-.6,this.bancoReal.z);this.ladoCondutor=this.bancoReal?Math.sign(this.bancoReal.x):-1;this.obj.add(this.encaixeCondutor);
+    prepararDinamica(this);
     this.obj.position.set(x, 0, z); this.yaw = yaw; this.v = 0; this.hp = 100; scene.add(this.obj);
   }
+  animarVisual(dt,dirigindo=false) { atualizarDinamica(this,dt,dirigindo); }
   definirFarol(on) { on = !!on; if (on === this.farolLigado) return; this.farolLigado = on; this.farois.visible = on; }
   definirCameraInterna(on) {
     if (this.duasRodas) return;
-    this.exterior.visible = !on; this.cabine.visible = on; this.aerofolio.visible = !on && this.tuning.aerofolio > 0;
+    if(this.m.interiorReal){this.exterior.visible=true;this.cabine.visible=false;return;}
+    this.exterior.visible = !on; if(this.porta)this.porta.visible=!on; this.cabine.visible = on; this.aerofolio.visible = !on && this.tuning.aerofolio > 0;
   }
   aplicarCustomizacao(cfg = {}) {
     Object.assign(this.tuning, cfg);
@@ -201,6 +217,7 @@ export class Carro {
   }
   dadosCustomizacao() { return { ...this.tuning }; }
   atualizar(dt, dirigindo) {
+    this.volanteFreio=dirigindo&&(teclas.KeyS||teclas.Space);
     if(this.hp<=0 || this.destruido || this.guardado)return;
     this.impactoCd=Math.max(0,this.impactoCd-dt);
     if (dirigindo) {
