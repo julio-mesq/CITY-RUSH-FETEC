@@ -1,0 +1,14 @@
+CITY RUSH — AJUSTES DE OTIMIZAÇÃO (v45)
+
+Alterações aplicadas:
+- Movimento do jogador agora limita o delta de tempo a 1/30 s por atualização para evitar saltos de física quando há queda de FPS ou retorno à aba.
+- Movimento e esquiva são subdivididos em passos curtos de até 0,12 unidade, reduzindo atravessamento de colisores e travamento nas quinas durante caminhada/corrida.
+- Verificação de chão usa tolerância de 0,02 em vez de exigir y exatamente igual a zero, evitando falhas intermitentes de pulo/esquiva.
+- Service Worker e precache foram versionados para v45, forçando a troca do cache antigo do navegador após a atualização.
+
+Sobre os assets:
+- Não removi modelos por tentativa: a análise encontrou referências para os 218 arquivos em assets, então apagar arquivos sem validar o carregamento poderia quebrar casas, veículos, NPCs, móveis ou recursos usados sob demanda.
+- Os maiores arquivos são os modelos de casas (incluindo os binários de campo.gltf, luxo.glb e moderna.glb). Recomendo comprimi-los com glTF Transform/Draco ou Meshopt numa etapa separada, testando visualmente as casas e suas colisões antes de substituir os originais.
+
+Observação:
+- As mudanças de movimento foram verificadas sintaticamente, mas o jogo precisa ser testado no navegador para medir FPS e confirmar o comportamento dentro da cena real.

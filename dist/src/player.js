@@ -271,6 +271,9 @@ export class Jogador {
   morrer() { this.morto = true; this.tm = 0; this.veiculo = null; }
   renascer() { this.morto = false; this.obj.rotation.x = 0; this.obj.scale.setScalar(1); this.yaw = this.cameraYaw = 0; this.vx = this.vz = this.vy = this.rolando = this.esquivaCd = 0; this.salto = null; this.st = 100; this.exausto = false; this.obj.userData.movimento = 'idle'; this.hp = 100; this.dinheiro = Math.floor(this.dinheiro * .9); this.obj.position.set(6, 0, 30); this.aoRenascer?.(); }
   atualizar(dt,atualizarAnimacao=true) {
+    // Evita saltos de física quando o navegador perde frames (aba em segundo plano,
+    // carregamento de GLBs ou queda momentânea de FPS).
+    dt = Math.max(0, Math.min(Number.isFinite(dt) ? dt : 0, 1 / 30));
     if (this.morto) { this.tm += dt; this.obj.rotation.x = Math.min(this.tm * 4, 1.5); this.obj.position.y = .2; if (this.tm > 3.5) this.renascer(); return; }
     if (this.veiculo) return;
     const k = this.k, p = this.obj.position;
@@ -285,11 +288,11 @@ export class Jogador {
     const direcaoCamera = k.giro ? this.yaw : this.cameraYaw, dir = direcao(fx,sx,direcaoCamera);
     const saltoNovo=!!teclas[k.pulo]&&!this.puloPressionado, ctrl=!!teclas[k.giro?'KeyB':'ControlLeft']||(!k.giro&&!!teclas.ControlRight), esquivaNova=ctrl&&!this.ctrlPressionado;
     this.puloPressionado=!!teclas[k.pulo];this.ctrlPressionado=ctrl;
-    if(esquivaNova && !this.salto && p.y===0 && this.esquivaCd===0 && this.st>=24){
+    if(esquivaNova && !this.salto && p.y<=0.02 && this.esquivaCd===0 && this.st>=24){
       this.rolando=.62;this.esquivaCd=1.1;this.st-=24;const d=fx||sx?dir:direcao(1,0,direcaoCamera);this.rollDir=d;this.yaw=Math.atan2(-d.x,-d.z);this.obj.userData.acoes?.rolar?.reset();
       dispatchEvent(new CustomEvent('city-event',{detail:{tipo:'esquiva'}}));
     }
-    if(saltoNovo && !this.rolando && !this.salto && p.y===0){
+    if(saltoNovo && !this.rolando && !this.salto && p.y<=0.02){
       const alvo=destinoParkour(p,direcaoCamera);
       if(alvo && this.st>=12){this.st-=12;this.salto={inicio:{x:p.x,z:p.z},fim:alvo,t:0};dispatchEvent(new CustomEvent('city-event',{detail:{tipo:'parkour'}}));}
       else this.vy=6.2;
@@ -299,7 +302,19 @@ export class Jogador {
     let dx=this.vx*dt,dz=this.vz*dt;
     if(this.rolando>0){this.rolando=Math.max(0,this.rolando-dt);dx=this.rollDir.x*7.5*dt;dz=this.rollDir.z*7.5*dt;}
     if(this.salto){const s=this.salto;s.t+=dt;const q=pontoSalto(s.inicio,s.fim,s.t/.68,s.fim.h);p.set(q.x,q.y,q.z);if(s.t>=.68){this.salto=null;this.vy=0;}dx=dz=0;}
-    else {if(!colide(p.x+dx,p.z,.35,p.y))p.x+=dx;else this.vx=0;if(!colide(p.x,p.z+dz,.35,p.y))p.z+=dz;else this.vz=0;}
+    else {
+      // Divide o deslocamento em passos curtos: evita atravessar paredes/colisores
+      // em corrida ou esquiva e reduz o efeito de ficar preso nas quinas.
+      const passos = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dz)) / .12));
+      const passoX = dx / passos, passoZ = dz / passos;
+      for (let i = 0; i < passos; i++) {
+        if (passoX && !colide(p.x + passoX, p.z, .35, p.y)) p.x += passoX;
+        else if (passoX) this.vx = 0;
+        if (passoZ && !colide(p.x, p.z + passoZ, .35, p.y)) p.z += passoZ;
+        else if (passoZ) this.vz = 0;
+      }
+      if (p.y < .02) p.y = 0;
+    }
     this.st = clamp(this.st + (correr && !this.rolando ? -18 : this.rolando||this.salto ? 0 : 13) * dt,0,100);
     if(!this.salto){
     this.vy -= 18 * dt; p.y = Math.max(0, p.y + this.vy * dt); if (p.y === 0) this.vy = 0;
