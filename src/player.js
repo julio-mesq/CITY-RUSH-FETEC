@@ -177,10 +177,11 @@ export function atualizarArmaTerceiraPessoa(g, mirando=false, ocultar=false) {
   let mao=null;
   if(u.mao){
     u.mao.getWorldPosition(MAO_MUNDO);
-    // Wrist é o pulso, não o centro da palma. Avança seis centímetros na
-    // direção do antebraço para colocar o cabo dentro da mão, sem deslocamento
-    // fixo nos eixos do mundo que separava a arma durante a animação.
-    if(u.mao.parent){u.mao.parent.getWorldPosition(COTOVELO_MUNDO);PALMA_DIRECAO.copy(MAO_MUNDO).sub(COTOVELO_MUNDO).normalize();MAO_MUNDO.addScaledVector(PALMA_DIRECAO,.055);}
+    // Usa o centro anatômico da palma, entre o pulso e a base dos dedos.
+    // A direção do antebraço não acompanha a flexão do pulso e afastava o cabo.
+    if(u.dedosArma===undefined)u.dedosArma=g.getObjectByName('Middle2.R')||g.getObjectByName('mixamorigRightHandMiddle1')||null;
+    if(u.dedosArma){u.dedosArma.getWorldPosition(COTOVELO_MUNDO);MAO_MUNDO.lerp(COTOVELO_MUNDO,.55);}
+    else if(/wrist/i.test(u.mao.name)&&u.mao.parent){u.mao.parent.getWorldPosition(COTOVELO_MUNDO);PALMA_DIRECAO.copy(MAO_MUNDO).sub(COTOVELO_MUNDO).normalize();MAO_MUNDO.addScaledVector(PALMA_DIRECAO,.035);}
     MAO_LOCAL.copy(MAO_MUNDO);g.worldToLocal(MAO_LOCAL);mao=MAO_LOCAL;
     // A arma acompanha posição E rotação do pulso. Antes ela seguia somente a
     // posição, por isso parecia flutuar ao lado da mão durante animações.

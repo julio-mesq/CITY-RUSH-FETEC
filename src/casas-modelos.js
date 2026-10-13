@@ -7,7 +7,7 @@ import { CASAS } from './casas-catalogo.js';
 export function criarCasasAnexadas(scene, lugares) {
   const loader=new GLTFLoader(),casas=lugares.filter(l=>l.tipo==='casa').map(l=>({l,def:CASAS[l.idx],grupo:new THREE.Group(),estado:'pendente',tentativa:0}));
   let ocupado=false;
-  for(const c of casas){c.grupo.position.set(c.l.x,0,c.l.z);c.grupo.name='casa-escolha-'+c.l.idx;scene.add(c.grupo);}
+  for(const c of casas){c.grupo.position.set(c.l.x,.03,c.l.z);c.grupo.name='casa-escolha-'+c.l.idx;scene.add(c.grupo);}
   function carregar(c){
     ocupado=true;c.estado='carregando';
     loader.load('assets/models/casas/'+(c.def.arquivo||c.def.modelo+'.glb'),gltf=>{
@@ -18,6 +18,15 @@ export function criarCasasAnexadas(scene, lugares) {
       const nivelTerreno=Number.isFinite(c.def.nivelTerreno)?c.def.nivelTerreno:box.min.y;
       modelo.position.set(-centro.x,-nivelTerreno,-centro.z);base.add(modelo);base.scale.setScalar(escala);base.rotation.y=c.def.rotacao;c.grupo.add(base);
       modelo.traverse(o=>{if(o.isMesh){o.castShadow=false;o.receiveShadow=true;}});
+      if(c.def.modelo==='campo'){
+        // Superfície dentro da piscina original, nas coordenadas do GLB.
+        // Material opaco mantém a água visível sobre o plano urbano contínuo.
+        const agua=new THREE.Mesh(new THREE.PlaneGeometry(6.17,3.81),new THREE.MeshStandardMaterial({color:0x279bb6,roughness:.24,metalness:.16,side:THREE.DoubleSide}));
+        agua.name='agua-piscina-campo';agua.rotation.x=-Math.PI/2;
+        agua.position.set(20.058192,-nivelTerreno+3.145,-15.51047);
+        // Mesmo centro, escala e rotação da casa; a translação pertence ao modelo.
+        agua.position.x-=centro.x;agua.position.z-=centro.z;base.add(agua);
+      }
       c.estado='pronto';ocupado=false;
     },undefined,erro=>{console.warn('[casas] não foi possível carregar',c.def.modelo,erro);c.estado='pendente';c.tentativa=performance.now()+15000;ocupado=false;});
   }

@@ -128,7 +128,7 @@ export function criarDecoracoes(scene, fraco) {
         detalhe(6.2,.16,7.2,madeira,l.x-8,3.15,l.z+10.5);
         for(const dx of [-10.9,-5.1])for(const dz of [7.1,13.9])detalhe(.14,3.1,.14,madeira,l.x+dx,1.55,l.z+dz);
       }
-      if(def.piscina){
+      if(def.piscina&&def.modelo!=='campo'){
         const azulejo=new THREE.MeshStandardMaterial({color:0xc8dedb,roughness:.55}),agua=new THREE.MeshStandardMaterial({color:0x3c9fb6,roughness:.22,metalness:.2});
         detalhe(5.6,.18,7.2,pedra,l.x+10,.09,l.z+9.5);
         detalhe(4.6,.05,6.2,agua,l.x+10,.2,l.z+9.5);
